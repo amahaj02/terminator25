@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { TMDBMovie } from './lib/tmdb';
-import { readMovieList } from './lib/processMovieList';
 import { searchMoviesFromList } from './lib/tmdb';
 
 export default function Home() {
@@ -13,7 +12,15 @@ export default function Home() {
   useEffect(() => {
     async function searchMovies() {
       try {
-        const movieList = readMovieList();
+        // Fetch the movie list from our API route
+        const response = await fetch('/api/movies');
+        if (!response.ok) {
+          throw new Error('Failed to fetch movie list');
+        }
+        const data = await response.json();
+        const movieList = data.movies;
+
+        // Search for movies using TMDB API
         const searchResults = await searchMoviesFromList(movieList);
         setResults(searchResults);
       } catch (err) {
