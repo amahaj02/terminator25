@@ -26,6 +26,10 @@ export default function Home() {
   const [genreGroupedMovies, setGenreGroupedMovies] = useState<Map<string, TMDBMovie[]>>(new Map());
   const searchInputRef = useRef<HTMLInputElement>(null);
   const predictionsRef = useRef<HTMLDivElement>(null);
+  
+  // Menu state
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     async function loadInitialMovies() {
@@ -122,6 +126,24 @@ export default function Home() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  // Add click outside listener to close menu
+  useEffect(() => {
+    function handleClickOutsideMenu(event: MouseEvent) {
+      if (
+        menuRef.current && 
+        !menuRef.current.contains(event.target as Node) &&
+        isMenuOpen
+      ) {
+        setIsMenuOpen(false);
+      }
+    }
+    
+    document.addEventListener('mousedown', handleClickOutsideMenu);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutsideMenu);
+    };
+  }, [isMenuOpen]);
 
   // Debounce function to limit API calls
   const debounce = (fn: Function, delay: number) => {
@@ -234,9 +256,128 @@ export default function Home() {
     }
   };
 
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen);
+  };
+
   return (
     <div className="min-h-screen bg-black text-white">
-      <div className="mx-auto">
+      <div className="mx-auto relative">
+        {/* Hamburger Menu Button */}
+        <button 
+          onClick={toggleMenu}
+          className="fixed top-4 left-4 z-50 p-2 text-white hover:text-gray-300 focus:outline-none"
+          aria-label="Toggle menu"
+        >
+          <svg
+            className="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d={isMenuOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"}
+            />
+          </svg>
+        </button>
+
+        {/* Mobile Menu */}
+        <div
+          ref={menuRef}
+          className={`fixed top-0 left-0 z-40 h-full w-full sm:w-80 bg-black transform transition-transform duration-300 ease-in-out ${
+            isMenuOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
+          <div className="flex flex-col h-full p-8">
+            <button
+              onClick={toggleMenu}
+              className="absolute top-4 left-4 text-white p-2"
+              aria-label="Close menu"
+            >
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+
+            <div className="mt-16 flex flex-col space-y-4">
+              <button className="py-3 px-5 rounded-full bg-white text-black font-semibold text-center">
+                Sign in
+              </button>
+              <button className="py-3 px-5 rounded-full bg-[#900048] text-white font-semibold text-center">
+                Join Us
+              </button>
+            </div>
+
+            <nav className="mt-12">
+              <ul className="space-y-6 text-xl">
+                <li>
+                  <Link href="/films" className="block hover:text-gray-300">
+                    Films
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/tv-shows" className="block hover:text-gray-300">
+                    TV Shows
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/genres" className="block hover:text-gray-300">
+                    Genres
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/tropes" className="block hover:text-gray-300">
+                    Tropes
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/a-z" className="block hover:text-gray-300">
+                    A-Z
+                  </Link>
+                </li>
+              </ul>
+            </nav>
+
+            <div className="mt-auto mb-8 text-sm">
+              <ul className="space-y-6">
+                <li>
+                  <Link href="/privacy-policy" className="block hover:text-gray-300">
+                    Privacy Policy
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/terms-of-service" className="block hover:text-gray-300">
+                    Terms of Service
+                  </Link>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* Black overlay when menu is open */}
+        {isMenuOpen && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-30"
+            onClick={() => setIsMenuOpen(false)}
+          />
+        )}
+
         <main className="flex flex-col items-center">
           {/* Hero section with search */}
           <section className="relative w-full py-10 px-4 flex flex-col items-center">
