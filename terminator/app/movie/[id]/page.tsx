@@ -4,15 +4,24 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { TMDBMovie } from '../../lib/tmdb';
 
+interface MovieAnalysis {
+  title: string;
+  releaseDate: string;
+  synopsis: string;
+  keyElements: string[];
+  tropesAndTags: string[];
+  whereToWatch: string[];
+}
+
 export default function MoviePage() {
   const params = useParams();
   const [movie, setMovie] = useState<TMDBMovie | null>(null);
-  const [synopsis, setSynopsis] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<MovieAnalysis | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchMovieAndSynopsis() {
+    async function fetchMovieAndAnalysis() {
       try {
         // Fetch movie details from TMDB
         const response = await fetch(`/api/movies/${params.id}`);
@@ -22,8 +31,8 @@ export default function MoviePage() {
         const movieData = await response.json();
         setMovie(movieData);
 
-        // Generate synopsis using Gemini
-        const synopsisResponse = await fetch('/api/gemini', {
+        // Generate analysis using Gemini
+        const analysisResponse = await fetch('/api/gemini', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -34,13 +43,13 @@ export default function MoviePage() {
           }),
         });
 
-        if (!synopsisResponse.ok) {
-          const errorData = await synopsisResponse.json();
-          throw new Error(errorData.details || errorData.error || 'Failed to generate synopsis');
+        if (!analysisResponse.ok) {
+          const errorData = await analysisResponse.json();
+          throw new Error(errorData.details || errorData.error || 'Failed to generate analysis');
         }
 
-        const synopsisData = await synopsisResponse.json();
-        setSynopsis(synopsisData.synopsis);
+        const analysisData = await analysisResponse.json();
+        setAnalysis(analysisData.data);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An error occurred');
       } finally {
@@ -48,7 +57,7 @@ export default function MoviePage() {
       }
     }
 
-    fetchMovieAndSynopsis();
+    fetchMovieAndAnalysis();
   }, [params.id]);
 
   if (loading) {
@@ -77,7 +86,7 @@ export default function MoviePage() {
     );
   }
 
-  if (!movie) {
+  if (!movie || !analysis) {
     return (
       <div className="p-4 max-w-4xl mx-auto">
         <div className="text-gray-600">Movie not found</div>
@@ -101,9 +110,48 @@ export default function MoviePage() {
           <h1 className="text-3xl font-bold mb-2">{movie.title}</h1>
           <p className="text-gray-600 mb-4">{movie.release_date}</p>
           
-          <div className="prose max-w-none">
-            <h2 className="text-xl font-semibold mb-4">AI-Generated Synopsis</h2>
-            <div className="whitespace-pre-wrap">{synopsis}</div>
+          <div className="prose max-w-none space-y-6">
+            <section>
+              <h2 className="text-xl font-semibold mb-4">Synopsis</h2>
+              <div className="whitespace-pre-wrap">{analysis.synopsis}</div>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-semibold mb-4">Key Elements</h2>
+              <div className="flex flex-wrap gap-2">
+                {analysis.keyElements.map((element, index) => (
+                  <span
+                    key={index}
+                    className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm"
+                  >
+                    {element}
+                  </span>
+                ))}
+              </div>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-semibold mb-4">Tropes & Tags</h2>
+              <div className="flex flex-wrap gap-2">
+                {analysis.tropesAndTags.map((tag, index) => (
+                  <span
+                    key={index}
+                    className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-semibold mb-4">Where to Watch</h2>
+              <ul className="list-disc pl-5 space-y-2">
+                {analysis.whereToWatch.map((platform, index) => (
+                  <li key={index}>{platform}</li>
+                ))}
+              </ul>
+            </section>
           </div>
         </div>
       </div>
