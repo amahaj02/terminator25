@@ -1,16 +1,21 @@
-'use client';
+"use client";
 
-import { useEffect, useState, useRef } from 'react';
-import { TMDBMovie, MovieEntry, fetchGenres } from './lib/tmdb';
-import { searchMovie, searchMoviesFromList, searchMoviesByQuery } from './lib/tmdb';
-import Link from 'next/link';
+import { useEffect, useState, useRef } from "react";
+import { TMDBMovie, MovieEntry, fetchGenres } from "./lib/tmdb";
+import {
+  searchMovie,
+  searchMoviesFromList,
+  searchMoviesByQuery,
+} from "./lib/tmdb";
+import Link from "next/link";
 
 export default function Home() {
+  // Original state variables
   const [results, setResults] = useState<Map<string, TMDBMovie[]>>(new Map());
   const [directResults, setDirectResults] = useState<TMDBMovie[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [noResults, setNoResults] = useState(false);
   const [resultCount, setResultCount] = useState(0);
@@ -136,16 +141,17 @@ export default function Home() {
     }
 
     try {
-      const response = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(query)}&include_adult=false`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch predictions');
-      }
+      const response = await fetch(
+        `https://api.themoviedb.org/3/search/movie?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(query)}&include_adult=false`,
+      );
+      if (!response.ok) throw new Error("Failed to fetch predictions");
+
       const data = await response.json();
       const movieSuggestions = data.results.slice(0, 6).map((movie: any) => ({
         id: movie.id,
         title: movie.title,
       }));
-      
+
       setPredictions(movieSuggestions);
       setShowPredictions(true);
     } catch (err) {
@@ -161,7 +167,6 @@ export default function Home() {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!searchTerm.trim()) return;
     
     setIsSearching(true);
@@ -180,197 +185,250 @@ export default function Home() {
       setResultCount(searchResults.length);
       setNoResults(searchResults.length === 0);
       
-      // Group direct search results by genre
-      if (searchResults.length > 0) {
-        const directResultsMap = new Map<string, TMDBMovie[]>();
-        directResultsMap.set('Search Results', searchResults);
-        groupMoviesByGenre(directResultsMap, genreMap);
-      }
-      
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred during search');
+      console.error('Search error:', err);
     } finally {
       setIsSearching(false);
     }
   };
 
-  // Handle input change for better UX
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setSearchTerm(value);
-    debouncedFetchPredictions(value);
-  };
-
-  // Handle prediction selection
-  const handlePredictionClick = (prediction: {id: number, title: string}) => {
-    setSearchTerm(prediction.title);
+  const handlePredictionClick = async (movieId: number, movieTitle: string) => {
+    setSearchTerm(movieTitle);
     setShowPredictions(false);
     
-    // Optional: auto-search when a prediction is clicked
-    setTimeout(() => {
-      const formEvent = { preventDefault: () => {} } as React.FormEvent;
-      handleSearch(formEvent);
-    }, 100);
-  };
-
-  // Function to render a single movie card
-  const renderMovieCard = (movie: TMDBMovie, sourceTitle?: string) => (
-    <Link 
-      href={`/movie/${movie.id}`} 
-      key={movie.id}
-      className="border rounded p-3 hover:bg-gray-50 transition-colors block"
-    >
-      <div className="flex flex-col h-full">
-        <h3 className="font-medium">{movie.title}</h3>
-        {sourceTitle && (
-          <p className="text-xs text-gray-500">From list: {sourceTitle}</p>
-        )}
-        <p className="text-sm text-gray-600">{movie.release_date}</p>
-        {movie.poster_path && (
-          <img
-            src={`https://image.tmdb.org/t/p/w200${movie.poster_path}`}
-            alt={movie.title}
-            className="mt-2 rounded w-full h-auto object-cover"
-          />
-        )}
-        <p className="text-xs text-gray-500 mt-2 line-clamp-3">{movie.overview}</p>
-        <div className="mt-auto pt-2">
-          <span className="text-xs text-blue-600 inline-flex items-center mt-1">
-            View AI synopsis
-            <svg className="w-4 h-4 ml-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </span>
-        </div>
-      </div>
-    </Link>
-  );
-
-  // Function to render the movie grid by genre
-  const renderMoviesByGenre = () => {
-    if (genreGroupedMovies.size === 0) {
-      return (
-        <div className="p-4 text-center text-gray-500">
-          No movies found. Try a different search term.
-        </div>
-      );
+    try {
+      setIsSearching(true);
+      // We need to create a MovieEntry from the title to pass to searchMovie
+      const movieEntry: MovieEntry = {
+        title: movieTitle,
+        year: null
+      };
+      
+      // Search for the movie
+      const result = await searchMovie(movieEntry);
+      
+      // Find the specific movie we want by ID
+      const specificMovie = result.find(movie => movie.id === movieId);
+      
+      if (specificMovie) {
+        setDirectResults([specificMovie]);
+        setIsDirectSearch(true);
+        setResultCount(1);
+        setNoResults(false);
+      } else if (result.length > 0) {
+        // If we didn't find the exact movie but got others with the same title, show them
+        setDirectResults(result);
+        setIsDirectSearch(true);
+        setResultCount(result.length);
+        setNoResults(false);
+      } else {
+        setNoResults(true);
+        setResultCount(0);
+      }
+    } catch (err) {
+      console.error('Error fetching movie details:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setIsSearching(false);
     }
-    
-    // Sort genres alphabetically but keep "Unknown" at the end if it exists
-    const sortedGenres = Array.from(genreGroupedMovies.keys()).sort((a, b) => {
-      if (a === 'Unknown') return 1;
-      if (b === 'Unknown') return -1;
-      return a.localeCompare(b);
-    });
-    
-    return (
-      <div className="space-y-8">
-        {sortedGenres.map(genre => (
-          <div key={genre} className="genre-section">
-            <h2 className="text-xl font-semibold mb-4 border-b pb-2">{genre}</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {genreGroupedMovies.get(genre)?.map(movie => renderMovieCard(movie))}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  // Replace the renderMovieGrid function with this updated version
-  const renderMovieGrid = () => {
-    if (loading) {
-      return <div className="p-4 text-center">Loading movies...</div>;
-    }
-    
-    if (error) {
-      return <div className="p-4 text-center text-red-500">Error: {error}</div>;
-    }
-    
-    if (isDirectSearch && directResults.length === 0) {
-      return (
-        <div className="p-4 text-center text-gray-500">
-          No movies found matching "{searchTerm}". Try a different search term or check your spelling.
-        </div>
-      );
-    }
-    
-    // Use the genre-based display
-    return renderMoviesByGenre();
   };
 
   return (
-    <main className="p-4 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">LGBTQ Movies Search</h1>
-      
-      <form onSubmit={handleSearch} className="mb-6 relative">
-        <div className="flex gap-2">
-          <div className="flex-1 relative">
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={searchTerm}
-              onChange={handleInputChange}
-              placeholder="Search for any movie..."
-              className="w-full p-2 border rounded"
-              onFocus={() => {
-                if (searchTerm.trim().length >= 2 && predictions.length > 0) {
-                  setShowPredictions(true);
-                }
-              }}
-            />
-            
-            {/* Predictions dropdown */}
-            {showPredictions && predictions.length > 0 && (
-              <div 
-                ref={predictionsRef}
-                className="absolute top-full left-0 right-0 mt-1 bg-white border rounded shadow-lg z-10"
-              >
-                {predictions.map(prediction => (
-                  <div
-                    key={prediction.id}
-                    className="p-2 hover:bg-gray-100 cursor-pointer border-b last:border-b-0 text-gray-800"
-                    onClick={() => handlePredictionClick(prediction)}
-                  >
-                    {prediction.title}
+    <div className="min-h-screen bg-black text-white">
+      <div className="mx-auto">
+        <main className="flex flex-col items-center">
+          {/* Hero section with search */}
+          <section className="relative w-full py-10 px-4 flex flex-col items-center">
+            <div className="w-full max-w-4xl flex flex-col items-center">
+              <h1 className="font-poppins text-5xl font-semibold text-center">
+                Discover Movies by Trope
+              </h1>
+              <p className="mt-4 font-poppins text-base text-[#A3A3A3] text-center max-w-md">
+                Find your next favorite movie based on the story elements you love
+              </p>
+
+              {/* Search box */}
+              <div className="mt-8 w-full max-w-md">
+                <form onSubmit={handleSearch} className="relative">
+                  <div className="search-input">
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      value={searchTerm}
+                      onChange={(e) => {
+                        setSearchTerm(e.target.value);
+                        debouncedFetchPredictions(e.target.value);
+                      }}
+                      placeholder="Search for movies, TV shows, or tropes..."
+                      className="w-full focus:outline-none text-black"
+                    />
+                    <button
+                      type="submit"
+                      className="bg-[#FF007F] rounded-full w-10 h-10 flex items-center justify-center"
+                    >
+                      <img
+                        src="https://cdn.builder.io/api/v1/image/assets/TEMP/b11a7bb8e7b7dd4903de2bd1d25bc01e83b35e6c?placeholderIfAbsent=true"
+                        alt="Search"
+                        className="w-4 h-4"
+                      />
+                    </button>
                   </div>
-                ))}
+                  
+                  {/* Predictions dropdown */}
+                  {showPredictions && predictions.length > 0 && (
+                    <div
+                      ref={predictionsRef}
+                      className="absolute z-10 mt-2 w-full bg-white text-black rounded-lg shadow-lg"
+                    >
+                      {predictions.map((movie) => (
+                        <div
+                          key={movie.id}
+                          className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                          onClick={() => handlePredictionClick(movie.id, movie.title)}
+                        >
+                          {movie.title}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </form>
               </div>
-            )}
-          </div>
-          <button 
-            type="submit" 
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
-            disabled={isSearching}
-          >
-            {isSearching ? 'Searching...' : 'Search'}
-          </button>
-        </div>
-        <p className="text-sm text-gray-500 mt-2">
-          Enter any movie name, even partial or misspelled - TMDB search will find the closest match!
-        </p>
-      </form>
-      
-      {loading && <div className="p-4">Loading initial movies...</div>}
-      {error && <div className="p-4 text-red-500">Error: {error}</div>}
-      {noResults && (
-        <div className="p-4 text-amber-600 border border-amber-300 bg-amber-50 rounded mb-4">
-          No matches found for "{searchTerm}". Try a different search term or check your spelling.
-        </div>
-      )}
-      
-      {!loading && !error && (
-        <div className="mb-4">
-          <h2 className="text-lg font-medium mb-2">
-            {isDirectSearch ? (
-              <>Search Results for "{searchTerm}": {resultCount} {resultCount === 1 ? 'Movie' : 'Movies'} Found</>
-            ) : (
-              <>Random LGBTQ Films: {resultCount} {resultCount === 1 ? 'Movie' : 'Movies'} Found</>
-            )}
-          </h2>
-          {renderMovieGrid()}
-        </div>
-      )}
-    </main>
+            </div>
+          </section>
+
+          {/* Loading, Error, or No Results States */}
+          {loading && (
+            <div className="w-full text-center py-8">
+              <p>Loading movies...</p>
+            </div>
+          )}
+
+          {error && (
+            <div className="w-full text-center py-8">
+              <p className="text-red-500">Error: {error}</p>
+            </div>
+          )}
+
+          {noResults && !loading && (
+            <div className="w-full text-center py-8">
+              <p>No movies found matching your search. Try a different query.</p>
+            </div>
+          )}
+
+          {/* Display search results */}
+          {!loading && !noResults && (
+            <section className="w-full max-w-6xl px-4 py-8">
+              <div className="w-full">
+                {isDirectSearch ? (
+                  <>
+                    <h2 className="section-title mb-4">Search Results for "{searchTerm}"</h2>
+                    <p className="section-subtitle mb-6">Found {resultCount} movie(s)</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                      {directResults.map(movie => (
+                        <Link href={`/movie/${movie.id}`} key={movie.id}>
+                          <div className="flex flex-col">
+                            {movie.poster_path ? (
+                              <img 
+                                src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
+                                alt={movie.title}
+                                className="movie-poster"
+                              />
+                            ) : (
+                              <div className="bg-gray-800 movie-poster flex items-center justify-center">
+                                <span className="text-sm text-center px-2">No poster available</span>
+                              </div>
+                            )}
+                            <h3 className="mt-2 text-sm font-medium line-clamp-2">{movie.title}</h3>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <h2 className="section-title mb-4">Browse Movies by Trope</h2>
+                    <p className="section-subtitle mb-6">Explore {resultCount} movies across different genres</p>
+                    
+                    {/* Category cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
+                      <div className="category-card-primary">
+                        <img
+                          src="https://cdn.builder.io/api/v1/image/assets/TEMP/6a46af89e4c41c35caa0a0b20e9331e962b16e52?placeholderIfAbsent=true"
+                          alt="Hero's Journey"
+                          className="w-12 h-12"
+                        />
+                        <div>
+                          <div className="text-lg font-medium">Hero's Journey</div>
+                          <div className="text-sm opacity-80">Classic storytelling arc</div>
+                        </div>
+                      </div>
+                      <div className="category-card-secondary">
+                        <img
+                          src="https://cdn.builder.io/api/v1/image/assets/TEMP/5a1d39a73e1e5dbaff8025b8d9cc578fdd9e21d6?placeholderIfAbsent=true"
+                          alt="Coming of Age"
+                          className="w-12 h-12"
+                        />
+                        <div>
+                          <div className="text-lg font-medium">Coming of Age</div>
+                          <div className="text-sm opacity-80">Growth & transformation</div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Display movies by genre */}
+                    {Array.from(genreGroupedMovies.entries()).map(([genre, movies]) => (
+                      <div key={genre} className="mb-12">
+                        <div className="flex items-center gap-1 font-poppins text-2xl text-white font-semibold mb-4">
+                          <h2>{genre}</h2>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                          {movies.slice(0, 5).map(movie => (
+                            <Link href={`/movie/${movie.id}`} key={movie.id}>
+                              <div className="flex flex-col">
+                                {movie.poster_path ? (
+                                  <img 
+                                    src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
+                                    alt={movie.title}
+                                    className="movie-poster"
+                                  />
+                                ) : (
+                                  <div className="bg-gray-800 movie-poster flex items-center justify-center">
+                                    <span className="text-sm text-center px-2">No poster available</span>
+                                  </div>
+                                )}
+                                <h3 className="mt-2 text-sm font-medium line-clamp-2">{movie.title}</h3>
+                              </div>
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* Footer */}
+          <footer className="w-full px-2 pt-4 pb-10 bg-[#AC0050] font-poppins text-xs text-white font-medium text-center">
+            <div className="w-full">
+              <p>Copyright © Trope to Truth. All rights reserved.</p>
+              <div className="flex mt-10 w-full flex-col items-center">
+                <a href="#" className="hover:underline">
+                  Contact us
+                </a>
+                <a href="#" className="mt-6 hover:underline">
+                  Terms of use
+                </a>
+                <a href="#" className="mt-6 hover:underline">
+                  Privacy policy
+                </a>
+              </div>
+            </div>
+          </footer>
+        </main>
+      </div>
+    </div>
   );
 }
