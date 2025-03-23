@@ -19,20 +19,34 @@ export interface TMDBResponse {
   total_results: number;
 }
 
-export async function searchMovie(query: string): Promise<TMDBMovie[]> {
+// Interface for movie entry from our API
+export interface MovieEntry {
+  title: string;
+  year: string | null;
+}
+
+export async function searchMovie(movieEntry: MovieEntry): Promise<TMDBMovie[]> {
   try {
+    const { title, year } = movieEntry;
+    
+    console.log('Searching for movie:', { title, year });
     console.log('Searching with credentials:', { 
       hasApiKey: !!TMDB_API_KEY, 
       hasAccessToken: !!TMDB_ACCESS_TOKEN 
     });
     
-    // Create search parameters - FIXED: don't apply encodeURIComponent directly
+    // Create search parameters
     const searchParams = new URLSearchParams({
-      query: query, // Removed encodeURIComponent as URLSearchParams handles encoding
+      query: title, // Title is the main search term
       language: 'en-US',
       page: '1',
       include_adult: 'true', // Include adult titles to maximize matches
     });
+    
+    // Add year parameter if available
+    if (year) {
+      searchParams.append('year', year);
+    }
     
     let url = `${TMDB_BASE_URL}/search/movie?${searchParams.toString()}`;
     let options: RequestInit = {
@@ -75,16 +89,26 @@ export async function searchMovie(query: string): Promise<TMDBMovie[]> {
     }
 
     const data: TMDBResponse = await response.json();
-    console.log(`Found ${data.results.length} results for "${query}"`);
+    console.log(`Found ${data.results.length} results for "${title}"${year ? ` (${year})` : ''}`);
     
     // Sort results by relevance
     const sortedResults = data.results.sort((a, b) => {
       // First prioritize exact title matches
-      const exactMatchA = a.title.toLowerCase() === query.toLowerCase();
-      const exactMatchB = b.title.toLowerCase() === query.toLowerCase();
+      const exactMatchA = a.title.toLowerCase() === title.toLowerCase();
+      const exactMatchB = b.title.toLowerCase() === title.toLowerCase();
       
       if (exactMatchA && !exactMatchB) return -1;
       if (!exactMatchA && exactMatchB) return 1;
+      
+      // If year is provided, prioritize movies from that year
+      if (year) {
+        const yearA = a.release_date ? parseInt(a.release_date.split('-')[0]) : 0;
+        const yearB = b.release_date ? parseInt(b.release_date.split('-')[0]) : 0;
+        const targetYear = parseInt(year);
+        
+        if (yearA === targetYear && yearB !== targetYear) return -1;
+        if (yearA !== targetYear && yearB === targetYear) return 1;
+      }
       
       // Then favor higher vote counts as more reliable matches
       return b.vote_count - a.vote_count;
@@ -92,17 +116,21 @@ export async function searchMovie(query: string): Promise<TMDBMovie[]> {
     
     return sortedResults;
   } catch (error) {
-    console.error(`Error searching for movie "${query}":`, error);
+    console.error(`Error searching for movie:`, error);
     return [];
   }
 }
 
-export async function searchMoviesFromList(movieTitles: string[]): Promise<Map<string, TMDBMovie[]>> {
+export async function searchMoviesFromList(movieEntries: MovieEntry[]): Promise<Map<string, TMDBMovie[]>> {
   const results = new Map<string, TMDBMovie[]>();
   
-  for (const title of movieTitles) {
-    const searchResults = await searchMovie(title);
-    results.set(title, searchResults);
+  for (const entry of movieEntries) {
+    const searchResults = await searchMovie(entry);
+    
+    // Only add movies that have results
+    if (searchResults.length > 0) {
+      results.set(entry.title, searchResults);
+    }
     
     // Add a small delay to avoid hitting rate limits
     await new Promise(resolve => setTimeout(resolve, 250));

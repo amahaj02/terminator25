@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { TMDBMovie } from './lib/tmdb';
+import { TMDBMovie, MovieEntry } from './lib/tmdb';
 import { searchMovie, searchMoviesFromList } from './lib/tmdb';
 
 export default function Home() {
@@ -21,7 +21,7 @@ export default function Home() {
           throw new Error('Failed to fetch movie list');
         }
         const data = await response.json();
-        const movieList = data.movies;
+        const movieList: MovieEntry[] = data.movies;
 
         // Search for movies using TMDB API
         const searchResults = await searchMoviesFromList(movieList);
@@ -52,7 +52,7 @@ export default function Home() {
       }
       
       const data = await response.json();
-      const movieList = data.movies;
+      const movieList: MovieEntry[] = data.movies;
       
       if (movieList.length === 0) {
         // No matching movies found
