@@ -10,6 +10,16 @@ export interface TMDBMovie {
   poster_path: string | null;
   vote_average: number;
   vote_count: number;
+  genre_ids: number[];
+}
+
+export interface TMDBGenre {
+  id: number;
+  name: string;
+}
+
+export interface TMDBGenreResponse {
+  genres: TMDBGenre[];
 }
 
 export interface TMDBResponse {
@@ -23,6 +33,73 @@ export interface TMDBResponse {
 export interface MovieEntry {
   title: string;
   year: string | null;
+}
+
+// Function to directly search TMDB with a user query
+export async function searchMoviesByQuery(query: string): Promise<TMDBMovie[]> {
+  try {
+    console.log('Directly searching TMDB for:', query);
+    console.log('Searching with credentials:', { 
+      hasApiKey: !!TMDB_API_KEY, 
+      hasAccessToken: !!TMDB_ACCESS_TOKEN 
+    });
+    
+    // Create search parameters
+    const searchParams = new URLSearchParams({
+      query: query, // User's search term
+      language: 'en-US',
+      page: '1',
+      include_adult: 'true', // Include adult titles to maximize matches
+    });
+    
+    let url = `${TMDB_BASE_URL}/search/movie?${searchParams.toString()}`;
+    let options: RequestInit = {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    };
+    
+    // Check for authentication credentials
+    if (!TMDB_ACCESS_TOKEN && !TMDB_API_KEY) {
+      console.error('No TMDB authentication credentials found. Check your .env.local file.');
+      throw new Error('No TMDB authentication credentials found. Check your .env.local file.');
+    }
+    
+    // Preferred method: Use Bearer token if available
+    if (TMDB_ACCESS_TOKEN) {
+      console.log('Using Bearer token authentication');
+      options.headers = {
+        ...options.headers,
+        'Authorization': `Bearer ${TMDB_ACCESS_TOKEN}`,
+      };
+    } 
+    // Fallback: Use API key as query parameter if token is not available
+    else if (TMDB_API_KEY) {
+      console.log('Using API key authentication');
+      // Append the API key to the URL
+      url = `${url}&api_key=${TMDB_API_KEY}`;
+    }
+    
+    console.log('Fetching from URL:', url.replace(/(api_key|Bearer)=[^&]+/, '$1=HIDDEN'));
+    
+    // Make the request
+    const response = await fetch(url, options);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`TMDB API error: ${response.status} ${response.statusText}`, errorText);
+      throw new Error(`TMDB API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data: TMDBResponse = await response.json();
+    console.log(`Found ${data.results.length} results for direct query "${query}"`);
+    
+    return data.results;
+  } catch (error) {
+    console.error(`Error directly searching TMDB:`, error);
+    return [];
+  }
 }
 
 export async function searchMovie(movieEntry: MovieEntry): Promise<TMDBMovie[]> {
@@ -137,4 +214,59 @@ export async function searchMoviesFromList(movieEntries: MovieEntry[]): Promise<
   }
   
   return results;
+}
+
+export async function fetchGenres(): Promise<Map<number, string>> {
+  try {
+    // Create genre map
+    const genreMap = new Map<number, string>();
+    
+    let url = `${TMDB_BASE_URL}/genre/movie/list?language=en-US`;
+    let options: RequestInit = {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    };
+    
+    // Check for authentication credentials
+    if (!TMDB_ACCESS_TOKEN && !TMDB_API_KEY) {
+      console.error('No TMDB authentication credentials found. Check your .env.local file.');
+      throw new Error('No TMDB authentication credentials found. Check your .env.local file.');
+    }
+    
+    // Preferred method: Use Bearer token if available
+    if (TMDB_ACCESS_TOKEN) {
+      options.headers = {
+        ...options.headers,
+        'Authorization': `Bearer ${TMDB_ACCESS_TOKEN}`,
+      };
+    } 
+    // Fallback: Use API key as query parameter if token is not available
+    else if (TMDB_API_KEY) {
+      // Append the API key to the URL
+      url = `${url}&api_key=${TMDB_API_KEY}`;
+    }
+    
+    // Make the request
+    const response = await fetch(url, options);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`TMDB API error: ${response.status} ${response.statusText}`, errorText);
+      throw new Error(`TMDB API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data: TMDBGenreResponse = await response.json();
+    
+    // Populate genre map
+    data.genres.forEach(genre => {
+      genreMap.set(genre.id, genre.name);
+    });
+    
+    return genreMap;
+  } catch (error) {
+    console.error(`Error fetching genres:`, error);
+    return new Map<number, string>();
+  }
 } 
