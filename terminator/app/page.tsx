@@ -126,7 +126,11 @@ export default function Home() {
             {movies.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {movies.map((movie) => (
-                  <div key={movie.id} className="border rounded p-3 hover:bg-gray-50 transition-colors">
+                  <a
+                    href={`/movie/${movie.id}`}
+                    key={movie.id}
+                    className="border rounded p-3 hover:bg-gray-50 transition-colors block"
+                  >
                     <h3 className="font-medium">{movie.title}</h3>
                     <p className="text-sm text-gray-600">{movie.release_date}</p>
                     {movie.poster_path && (
@@ -137,7 +141,7 @@ export default function Home() {
                       />
                     )}
                     <p className="text-xs text-gray-500 mt-2 line-clamp-3">{movie.overview}</p>
-                  </div>
+                  </a>
                 ))}
               </div>
             ) : (
